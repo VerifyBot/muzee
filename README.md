@@ -4,6 +4,7 @@ Spotify utilities to increase productivity.
 
 > [!TIP]
 > We are live @ https://themuzee.web.app
+> Currently on test-mode, create an issue to be whitelisted.
 
 ---
 
