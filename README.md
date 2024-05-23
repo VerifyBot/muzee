@@ -2,6 +2,9 @@
 
 Spotify utilities to increase productivity.
 
+> [!TIP]
+> We are live @ https://themuzee.web.app
+
 ---
 
 ## 🎶 Feautures
@@ -31,7 +34,7 @@ I coded this project using soft coding principles, so it's easy to add new featu
 
 **UI** 
 - Framework: [`🔰 Vue`](https://vuejs.org/)
-- Components: [`💙 Vuetify`](https://vuetifyjs.com/en/).
+- Components: [`💙 Vuetify`](https://vuetifyjs.com/en/)
 - Hosting: [`🔥 Firebase Hosting`](https://firebase.google.com/docs/hosting)
 
 **Server**
