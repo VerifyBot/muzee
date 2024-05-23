@@ -9,8 +9,8 @@ import coloredlogs
 
 coloredlogs.install(level="INFO")
 
-tabels = dict(
-  users="""
+tables = dict(
+    users="""
   CREATE TABLE IF NOT EXISTS users (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     
@@ -48,8 +48,7 @@ tabels = dict(
     
   );
   """,
-
-  user_stats = """
+    user_stats="""
   CREATE TABLE IF NOT EXISTS user_stats (
     user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
         
@@ -61,9 +60,8 @@ tabels = dict(
   );
   
   """,
-
-  # events table for logging activity
-  events = """
+    # events table for logging activity
+    events="""
   CREATE TABLE IF NOT EXISTS events (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT,
@@ -74,42 +72,41 @@ tabels = dict(
     success BOOLEAN,
     data JSONB DEFAULT '{}'::jsonb
   );
-  """
-
+  """,
 )
 
 
 async def setup_db(pool: asyncpg.Pool, redo: list | bool = None):
-  async with pool.acquire() as conn:
-    for table in tabels:
-      if redo:
-        if redo is not True and table not in redo:
-          continue
+    async with pool.acquire() as conn:
+        for table in tables:
+            if redo:
+                if redo is not True and table not in redo:
+                    continue
 
-        logging.info(f"Dropping table {table}")
-        await conn.execute(f"DROP TABLE IF EXISTS {table} CASCADE;")
+                logging.info(f"Dropping table {table}")
+                await conn.execute(f"DROP TABLE IF EXISTS {table} CASCADE;")
 
-        if table == 'runs':
-          logging.info("^ Resetting total_runs from muzee")
-          await conn.execute("UPDATE muzee SET total_runs = 0")
+                if table == "runs":
+                    logging.info("^ Resetting total_runs from muzee")
+                    await conn.execute("UPDATE muzee SET total_runs = 0")
 
-      logging.info(f"Creating table {table}")
-      await conn.execute(tabels[table])
+            logging.info(f"Creating table {table}")
+            await conn.execute(tables[table])
 
 
 async def main(*args, **kwargs):
-  config = configparser.ConfigParser()
-  config.read("config.ini")
+    config = configparser.ConfigParser()
+    config.read("config.ini")
 
-  logging.info("Connecting to the database")
-  async with asyncpg.create_pool(
-      user=config.get("database", "username"),
-      password=config.get("database", "password"),
-      database=config.get("database", "database"),
-  ) as pool:
-    logging.info("Setting up the database")
-    await setup_db(pool, *args, **kwargs)
+    logging.info("Connecting to the database")
+    async with asyncpg.create_pool(
+        user=config.get("database", "username"),
+        password=config.get("database", "password"),
+        database=config.get("database", "database"),
+    ) as pool:
+        logging.info("Setting up the database")
+        await setup_db(pool, *args, **kwargs)
 
 
 if __name__ == "__main__":
-  asyncio.run(main(redo=True))
+    asyncio.run(main(redo=True))

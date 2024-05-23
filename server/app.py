@@ -17,203 +17,196 @@ import logging
 
 from sanic_ext.exceptions import ValidationError
 
-from .database import Database
-from .models import User
-from .routes.utils.actions import run_daily_smash, run_public_liked
-
-from .utils import spotify as sp
-
-from .context import Context
-
-
+from server.database import Database
+from server.models.user import User
+from server.models.context import Context
+from server.actions import run_daily_smash, run_public_liked
+from server.utils import spotify as sp
 
 
 class Muzee:
-  def __init__(self, *args, app: Sanic, config: configparser.ConfigParser, mode: str = "dev", **kwargs):
-    self.app = app
-    self.config = config
+    def __init__(
+        self,
+        *args,
+        app: Sanic,
+        config: configparser.ConfigParser,
+        mode: str = "dev",
+        **kwargs,
+    ):
+        self.app = app
+        self.config = config
 
+        self.ctx: Context = None  # created in setup_hook
 
+        # CORS for all origins. todo: change this to the website url
+        app.config.CORS_ORIGINS = "*"
+        Extend(app)
 
-    self.ctx: Context = None  # created in setup_hook
+        # register listeners for database connection
+        self.register_listeners()
 
-    # CORS for all origins. todo: change this to the website url
-    app.config.CORS_ORIGINS = "*"
-    Extend(app)
+        ## Global Variables ##
+        self.setup_globals(mode)
 
-    # register listeners for database connection
-    self.register_listeners()
+        ## Routes ##
+        self.load_routes()
 
-    ## Global Variables ##
-    self.setup_globals(mode)
+        ## Error Handlers ##
+        self.app.error_handler.add(
+            ValidationError, self.on_pydantic_error
+        )  # pydantic errors
+        self.app.error_handler.add(
+            AssertionError, self.on_assertion_error
+        )  # assertion errors
 
-    ## Routes ##
-    self.load_routes()
+    async def daily_smash_task(self):
+        """
+        Task to run every 5 minutes and look for
+        daily smashes that need to be generated
+        """
 
-    ## Error Handlers ##
-    self.app.error_handler.add(ValidationError, self.on_pydantic_error)  # pydantic errors
-    self.app.error_handler.add(AssertionError, self.on_assertion_error)  # assertion errors
+        # i dont trust aiocron enough...
+        now = datetime.now(pytz.UTC)
+        rounded_minute = now.minute - (now.minute % 5)
+        rounded_now = now.replace(minute=rounded_minute, second=0, microsecond=0).time()
 
+        logging.info(f"daily smash task ({rounded_now.replace()} UTC)")
 
+        users = await self.ctx.db.pool.fetch(
+            """
+SELECT * FROM users
+WHERE
+  'daily-smash' = ANY(enabled_features)
+  AND ds_playlist IS NOT NULL
+  AND ds_songs_count > 0
+  AND ds_update_at = $1
+""",
+            rounded_now,
+        )
 
-  async def daily_smash_task(self):
-    """
-    Task to run every 5 minutes and look for
-    daily smashes that need to be generated
-    """
+        for raw_user in users:
+            ctx = copy.copy(self.ctx)
+            ctx.user = User(**raw_user)
 
+            logging.info(f"Running daily smash for {ctx.user.username}")
+            await run_daily_smash(ctx=ctx)
 
-    # i dont trust aiocron enough...
-    now = datetime.now(pytz.UTC)
-    rounded_minute = now.minute - (now.minute % 5)
-    rounded_now = now.replace(minute=rounded_minute, second=0, microsecond=0).time()
+        # logging.info(f"DS users for {rounded_now.strftime('%H:%M')}:\n{'\n'.join(str(u) for u in users)}")
 
-    logging.info(f'daily smash task ({rounded_now.replace()} UTC)')
+    async def public_liked_task(self):
+        """
+        Task to run every 30 minutes
+        and update the public liked playlists
+        """
 
-    users = await self.ctx.db.pool.fetch(
-      """
-      SELECT * FROM users
-      WHERE
-        'daily-smash' = ANY(enabled_features)
-        AND ds_playlist IS NOT NULL
-        AND ds_songs_count > 0
-        AND ds_update_at = $1
-      """,
-      rounded_now
-    )
+        users = await self.ctx.db.pool.fetch(
+            """
+SELECT * FROM users
+WHERE
+  'public-liked' = ANY(enabled_features)
+  AND pl_playlist IS NOT NULL
+"""
+        )
 
-    for raw_user in users:
-      ctx = copy.copy(self.ctx)
-      ctx.user = User(**raw_user)
+        for raw_user in users:
+            ctx = copy.copy(self.ctx)
+            ctx.user = User(**raw_user)
 
-      print(f'Running daily smash for {ctx.user.username}')
-      await run_daily_smash(ctx=ctx)
+            logging.info(f"Running public liked for {ctx.user.username}")
+            await run_public_liked(ctx=ctx)
 
-    # print(f"DS users for {rounded_now.strftime('%H:%M')}:\n{'\n'.join(str(u) for u in users)}")
+    async def on_pydantic_error(self, request: Request, exception: ValidationError):
+        exc: pydantic.ValidationError = exception.extra["exception"]
 
-  async def public_liked_task(self):
-    """
-    Task to run every 30 minutes
-    and update the public liked playlists
-    """
+        return json(
+            {"error": {"type": "ValidationError", "detail": json_lib.loads(exc.json())}}
+        )
 
-    users = await self.ctx.db.pool.fetch(
-      """
-      SELECT * FROM users
-      WHERE
-        'public-liked' = ANY(enabled_features)
-        AND pl_playlist IS NOT NULL
-      """
-    )
+    async def on_assertion_error(self, request: Request, exception: AssertionError):
+        return json({"error": {"type": "AssertionError", "detail": str(exception)}})
 
-    for raw_user in users:
-      ctx = copy.copy(self.ctx)
-      ctx.user = User(**raw_user)
+    async def setup_hook(self, app: Sanic):
+        logging.info("Setting up db connection")
 
-      print(f'Running public liked for {ctx.user.username}')
-      await run_public_liked(ctx=ctx)
+        pool = await asyncpg.create_pool(
+            user=self.config.get("database", "username"),
+            password=self.config.get("database", "password"),
+            database=self.config.get("database", "database"),
+        )
 
+        db_conn = Database(pool)
+        app.ctx.db = db_conn
 
+        spotify = sp.Spotify(
+            client_id=self.config.get("spotify", "client_id"),
+            client_secret=self.config.get("spotify", "client_secret"),
+            scope=self.config.get("spotify", "scope"),
+            server_url=app.ctx.SERVER_URL,
+            db=db_conn,
+        )
 
-  async def on_pydantic_error(self, request: Request, exception: ValidationError):
-    exc: pydantic.ValidationError = exception.extra['exception']
+        ctx = Context(db=db_conn, spotify=spotify)
 
-    return json({"error": {
-      "type": "ValidationError",
-      "detail": json_lib.loads(exc.json())
-    }})
+        self.ctx = ctx
+        app.ext.dependency(ctx, name="ctx")
 
-  async def on_assertion_error(self, request: Request, exception: AssertionError):
-    return json({"error": {
-      "type": "AssertionError",
-      "detail": str(exception)
-    }})
+        ## Tasks ##
+        aiocron.crontab("*/5 * * * * 15", func=self.daily_smash_task, start=True)
+        aiocron.crontab("0,30 * * * *", func=self.public_liked_task, start=True)
 
-  async def setup_hook(self, app: Sanic):
-    logging.info("Setting up db connection")
+    async def close_hook(self, app: Sanic):
+        logging.info("Closing db connection")
+        db_conn: Database = app.ctx.db
+        await db_conn.pool.close()
 
+    def register_listeners(self):
+        self.app.register_listener(self.setup_hook, "before_server_start")
+        self.app.register_listener(self.close_hook, "before_server_stop")
 
+    def setup_globals(self, mode: str):
+        DEBUG_MODE = mode == "dev"
+        server_section = "app" if DEBUG_MODE else "prod_app"
 
-    pool = await asyncpg.create_pool(
-      user=self.config.get("database", "username"),
-      password=self.config.get("database", "password"),
-      database=self.config.get("database", "database"),
-    )
+        self.app.ctx.states_cache = SimpleMemoryCache(ttl=300)
 
-    db_conn = Database(pool)
-    app.ctx.db = db_conn
+        self.app.ctx.config = self.config
+        self.app.ctx.DEBUG_MODE = DEBUG_MODE
+        self.app.ctx.APP_ADMINS = set(
+            uid for uid in self.config.get("misc", "admins").split(",")
+        )
+        self.app.ctx.SERVER_URL = self.config.get(server_section, "server_url")
+        self.app.ctx.WEBSITE_URL = self.config.get(server_section, "website_url")
 
-    spotify = sp.Spotify(
-      client_id=self.config.get("spotify", "client_id"),
-      client_secret=self.config.get("spotify", "client_secret"),
-      scope=self.config.get("spotify", "scope"),
-      server_url=app.ctx.SERVER_URL,
-      db=db_conn
-    )
+    def load_routes(self):
+        # OAuth
+        from .routes.oauth2 import route_connect, route_callback
 
-    ctx = Context(
-      db=db_conn,
-      spotify=spotify
-    )
+        oauth2 = Blueprint("oauth2", url_prefix="/oauth2")
+        oauth2.add_route(route_connect, "/connect")
+        oauth2.add_route(route_callback, "/callback")
+        self.app.blueprint(oauth2)
 
-    self.ctx = ctx
-    app.ext.dependency(ctx, name="ctx")
+        # Misc
+        from .routes.misc import route_hello, route_health, route_status
 
+        self.app.add_route(route_hello, "/", methods=["GET"])
+        self.app.add_route(route_health, "/health", methods=["GET"])
+        self.app.add_route(route_status, "/status", methods=["GET"])
 
-    ## Tasks ##
-    aiocron.crontab('*/5 * * * * 15', func=self.daily_smash_task, start=True)
-    aiocron.crontab('0,30 * * * *', func=self.public_liked_task, start=True)
+        # Features
+        from .routes.features import route_generate_playlist
+        from .routes.features import route_toggle_daily_smash, route_feature_details
+        from .routes.features import route_language_filter
+        from .routes.features import route_toggle_public_liked
 
-
-  async def close_hook(self, app: Sanic):
-    logging.info("Closing db connection")
-    db_conn: Database = app.ctx.db
-    await db_conn.pool.close()
-
-  def register_listeners(self):
-    self.app.register_listener(self.setup_hook, "before_server_start")
-    self.app.register_listener(self.close_hook, "before_server_stop")
-
-  def setup_globals(self, mode: str):
-    DEBUG_MODE = mode == "dev"
-    server_section = "app" if DEBUG_MODE else "prod_app"
-
-    self.app.ctx.states_cache = SimpleMemoryCache(ttl=300)
-
-    self.app.ctx.config = self.config
-    self.app.ctx.DEBUG_MODE = DEBUG_MODE
-    self.app.ctx.APP_ADMINS = set(uid for uid in self.config.get("misc", "admins").split(","))
-    self.app.ctx.SERVER_URL = self.config.get(server_section, "server_url")
-    self.app.ctx.WEBSITE_URL = self.config.get(server_section, "website_url")
-
-
-
-  def load_routes(self):
-    # OAuth
-    from .routes.oauth2 import route_connect, route_callback
-
-    oauth2 = Blueprint("oauth2", url_prefix="/oauth2")
-    oauth2.add_route(route_connect, "/connect")
-    oauth2.add_route(route_callback, "/callback")
-    self.app.blueprint(oauth2)
-
-    # Misc
-    from .routes.misc import route_hello, route_health, route_status
-
-    self.app.add_route(route_hello, "/", methods=["GET"])
-    self.app.add_route(route_health, "/health", methods=["GET"])
-    self.app.add_route(route_status, "/status", methods=["GET"])
-
-    # Features
-    from .routes.features import route_generate_playlist
-    from .routes.features import route_toggle_daily_smash, route_feature_details
-    from .routes.features import route_language_filter
-    from .routes.features import route_toggle_public_liked
-
-    self.app.add_route(route_generate_playlist, "/generate_playlist", methods=["POST"])
-    self.app.add_route(route_toggle_daily_smash, "/toggle_daily_smash", methods=["POST"])
-    self.app.add_route(route_feature_details, "/feature_details", methods=["POST"])
-    self.app.add_route(route_language_filter, "/language_filter", methods=["POST"])
-    self.app.add_route(route_toggle_public_liked, "/toggle_public_liked", methods=["POST"])
-
-
+        self.app.add_route(
+            route_generate_playlist, "/generate_playlist", methods=["POST"]
+        )
+        self.app.add_route(
+            route_toggle_daily_smash, "/toggle_daily_smash", methods=["POST"]
+        )
+        self.app.add_route(route_feature_details, "/feature_details", methods=["POST"])
+        self.app.add_route(route_language_filter, "/language_filter", methods=["POST"])
+        self.app.add_route(
+            route_toggle_public_liked, "/toggle_public_liked", methods=["POST"]
+        )

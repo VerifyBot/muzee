@@ -4,11 +4,8 @@ import configparser
 import coloredlogs
 import logging
 
-from .database import Database
-
-import json as json_lib
-
-from .app import Muzee
+from server.database import Database
+from server.app import Muzee
 
 coloredlogs.install(level="INFO")
 
@@ -22,37 +19,34 @@ config.read("./config.ini")
 
 
 def _create_app(mode: str = "dev") -> Sanic:
-  """
-  Create the Sanic app
-  """
+    """
+    Create the Sanic app
+    """
 
-  app = Sanic(
-    "Muzee",
-    dumps=lambda obj: json_lib.dumps(obj, default=str)  # serialize datetime objects.
-  )
+    app = Sanic("Muzee")
 
-  # Extend the app with our custom functionality
-  Muzee(app=app, config=config, mode=mode)
+    # Extend the app with our custom functionality
+    Muzee(app=app, config=config, mode=mode)
 
-  return app
+    return app
 
 
 def dev() -> Sanic:
-  """
-  Run a development app
+    """
+    Run a development app
 
-  Usage:
-    sanic server:dev
-  """
-  return _create_app(mode="dev")
+    Usage:
+      sanic server:dev
+    """
+    return _create_app(mode="dev")
 
 
 def prod() -> Sanic:
-  """
-  Run a production app
+    """
+    Run a production app
 
-  Usage:
-    sanic server:prod
-  """
+    Usage:
+      sanic server:prod
+    """
 
-  return _create_app(mode="prod")
+    return _create_app(mode="prod")
