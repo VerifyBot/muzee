@@ -2,6 +2,7 @@ import copy
 from datetime import datetime
 import aiocron
 import pydantic
+import pytz
 
 from sanic import Sanic, Blueprint, Request, json
 from sanic_ext import Extend
@@ -18,7 +19,7 @@ from sanic_ext.exceptions import ValidationError
 
 from .database import Database
 from .models import User
-from .routes.utils.actions import run_daily_smash
+from .routes.utils.actions import run_daily_smash, run_public_liked
 
 from .utils import spotify as sp
 
@@ -61,12 +62,13 @@ class Muzee:
     daily smashes that need to be generated
     """
 
-    # print('daily smash task')
 
     # i dont trust aiocron enough...
-    now = datetime.now()
+    now = datetime.now(pytz.UTC)
     rounded_minute = now.minute - (now.minute % 5)
     rounded_now = now.replace(minute=rounded_minute, second=0, microsecond=0).time()
+
+    logging.info(f'daily smash task ({rounded_now.replace()} UTC)')
 
     users = await self.ctx.db.pool.fetch(
       """
@@ -85,9 +87,32 @@ class Muzee:
       ctx.user = User(**raw_user)
 
       print(f'Running daily smash for {ctx.user.username}')
-      await run_daily_smash(ctx)
+      await run_daily_smash(ctx=ctx)
 
     # print(f"DS users for {rounded_now.strftime('%H:%M')}:\n{'\n'.join(str(u) for u in users)}")
+
+  async def public_liked_task(self):
+    """
+    Task to run every 30 minutes
+    and update the public liked playlists
+    """
+
+    users = await self.ctx.db.pool.fetch(
+      """
+      SELECT * FROM users
+      WHERE
+        'public-liked' = ANY(enabled_features)
+        AND pl_playlist IS NOT NULL
+      """
+    )
+
+    for raw_user in users:
+      ctx = copy.copy(self.ctx)
+      ctx.user = User(**raw_user)
+
+      print(f'Running public liked for {ctx.user.username}')
+      await run_public_liked(ctx=ctx)
+
 
 
   async def on_pydantic_error(self, request: Request, exception: ValidationError):
@@ -136,7 +161,8 @@ class Muzee:
 
 
     ## Tasks ##
-    cron = aiocron.crontab('* * * * *', func=self.daily_smash_task, start=True)
+    aiocron.crontab('*/5 * * * * 15', func=self.daily_smash_task, start=True)
+    aiocron.crontab('0,30 * * * *', func=self.public_liked_task, start=True)
 
 
   async def close_hook(self, app: Sanic):
@@ -189,3 +215,5 @@ class Muzee:
     self.app.add_route(route_feature_details, "/feature_details", methods=["POST"])
     self.app.add_route(route_language_filter, "/language_filter", methods=["POST"])
     self.app.add_route(route_toggle_public_liked, "/toggle_public_liked", methods=["POST"])
+
+

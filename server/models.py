@@ -2,6 +2,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 
+import pytz
 import enum
 
 import humanize
@@ -36,7 +37,7 @@ class User:
 
   enabled_features: list[str] = None
 
-  timezone_offset: int = None
+  timezone: str = None
 
   # features related
   ds_playlist: str = None
@@ -49,3 +50,13 @@ class User:
   def ds_update_at_minutes(self) -> int | None:
     if self.ds_update_at is not None:
       return self.ds_update_at.minute + self.ds_update_at.hour * 60
+
+  @property
+  def tz(self) -> pytz.BaseTzInfo:
+    """Convert user's timezone string to a pytz timezone object."""
+    assert self.timezone is not None, "User's timezone is not set"
+    return pytz.timezone(self.timezone)
+
+  def now(self) -> datetime:
+    """Get the current time in the user's timezone."""
+    return datetime.now(self.tz)

@@ -8,7 +8,11 @@ c<template>
           Playlist Topic
         </div>
         <v-text-field placeholder="eurovision songs..." variant="outlined" spellcheck="false"
-          append-inner-icon="mdi-shuffle-variant" @click:append-inner="randomTopic" v-model="topicValue"></v-text-field>
+          v-model="topicValue">
+          <template #append-inner>
+            <v-icon @mousedown.stop @click.stop @click="randomTopic" icon="mdi-shuffle-variant"></v-icon>
+          </template>
+        </v-text-field>
 
 
         <div class="text-medium-emphasis mb-2">
@@ -31,26 +35,7 @@ c<template>
     <span v-else-if="state === 'done'">
       <h2 class="done mt-5 mb-2 text-center">🎉 Done</h2>
 
-      <v-card class="d-flex justify-space-between flex-wrap" style="justify-content: center !important;">
-        <div>
-
-          <v-card-title class="text-h5">
-            {{ playlistName }}
-          </v-card-title>
-
-          <v-card-subtitle>{{ playlistSongsCount }} songs</v-card-subtitle>
-        </div>
-
-        <v-avatar class="ma-3" rounded="0" size="125">
-          <v-img :src="playlistImage" lazy-src="https://i.imgur.com/N1svi4r.png">
-            <template v-slot:placeholder>
-              <div class="d-flex align-center justify-center fill-height">
-                <v-progress-circular color="grey-lighten-4" indeterminate></v-progress-circular>
-              </div>
-            </template>
-          </v-img>
-        </v-avatar>
-      </v-card>
+      <PlaylistCard v-if="playlistId" :newDelay="true" :playlistId="playlistId" />
 
       <v-card-actions class="justify-center mt-5 flex-wrap">
         <v-btn color="green" variant="outlined" prepend-icon="mdi-spotify" class="ma-2" @click="openPlaylist">
@@ -82,13 +67,13 @@ c<template>
 </template>
 
 <script>
-import shared from '../../shared.js';
+import PlaylistCard from '@/components/PlaylistCard.vue';
+
 
 export default {
-  created() {
-    this.request = shared.request.bind(this);
+  components: {
+    PlaylistCard
   },
-
   data() {
     return {
       direction: 'ltr',
@@ -124,7 +109,6 @@ export default {
       const js = await this.api.generatePlaylist({
         topic: this.topicValue,
         songs_count: this.songsCount,
-        timezone_offset: new Date().getTimezoneOffset()
       });
 
       this.$emit("stop-loading");

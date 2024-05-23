@@ -30,11 +30,11 @@ tabels = dict(
        
     enabled_features TEXT[] DEFAULT '{}',
     
-    timezone_offset INT,
+    timezone TEXT,
     
     -- daily smash (ds)
     ds_playlist TEXT,    
-    ds_update_at TIME,
+    ds_update_at TIME,  -- will always be in UTC
     ds_songs_count INT,
     
     -- public liked (pl)
@@ -56,7 +56,7 @@ tabels = dict(
     generated_playlists INT DEFAULT 0,
     daily_smashes INT DEFAULT 0,
     filtered_playlists INT DEFAULT 0,
-    archived_song INT DEFAULT 0,
+    archived_songs INT DEFAULT 0,
     weather_changes INT DEFAULT 0
   );
   
@@ -112,4 +112,4 @@ async def main(*args, **kwargs):
 
 
 if __name__ == "__main__":
-  asyncio.run(main(redo=["users"]))
+  asyncio.run(main(redo=True))

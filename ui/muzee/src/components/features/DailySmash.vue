@@ -25,30 +25,9 @@
 
       <!-- feature playlist -->
       <div v-if="featureEnabled" class="mx-auto pb-3">
-        <v-card class="d-flex justify-space-between flex-wrap" style="justify-content: center !important;">
-          <div>
 
-            <v-card-title class="text-h5">
-              Daily Smash
-            </v-card-title>
+        <PlaylistCard v-if="playlistId" :playlistId="playlistId" />
 
-            <v-card-subtitle>🕺 updates daily 🕺</v-card-subtitle>
-
-            <v-card-actions>
-              <v-btn prepend-icon="mdi-spotify" class="mx-2" color="green" @click="openPlaylist">Open</v-btn>
-            </v-card-actions>
-          </div>
-
-          <v-avatar class="ma-3" rounded="0" size="125">
-            <v-img :src="playlistImage" lazy-src="https://i.imgur.com/N1svi4r.png">
-              <template v-slot:placeholder>
-                <div class="d-flex align-center justify-center fill-height">
-                  <v-progress-circular color="grey-lighten-4" indeterminate></v-progress-circular>
-                </div>
-              </template>
-            </v-img>
-          </v-avatar>
-        </v-card>
       </div>
 
       <!-- actions -->
@@ -64,8 +43,14 @@
 </template>
 
 <script>
+import PlaylistCard from '@/components/PlaylistCard.vue';
+
 
 export default {
+  components: {
+    PlaylistCard
+  },
+
   async mounted() {
     this.featureEnabled = this.enabledFeatures.includes(this.featureKey);
 
@@ -112,10 +97,9 @@ export default {
         enabled: !this.featureEnabled,
         update_at: this.updateAt,
         songs_count: this.songsCount,
-        timezone_offset: new Date().getTimezoneOffset()
       });
 
-      this.$emit("feature-toggle", 'daily-smash', !this.featureEnabled)
+      this.$emit("feature-toggle", this.featureKey, !this.featureEnabled)
       this.$emit("stop-loading");
 
       if (js.error) {
@@ -136,10 +120,3 @@ export default {
 }
 
 </script>
-
-<style>
-.bold-picked {
-  font-weight: bold;
-  color: #d27ddf;
-}
-</style>

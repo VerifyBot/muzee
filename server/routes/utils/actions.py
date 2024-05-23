@@ -1,11 +1,13 @@
 import itertools
 import random
 
-from .quick import to_user_now
 from ...context import Context
+from ...decos import use_spotify
+from ...utils.spotify import MySpotifyClient
 
 
-async def run_daily_smash(ctx: Context, create: bool = False):
+@use_spotify
+async def run_daily_smash(ctx: Context, sc: MySpotifyClient, create: bool = False):
   """
   🥒 Create a playlist with random songs from the user's library playlists.
 
@@ -13,9 +15,6 @@ async def run_daily_smash(ctx: Context, create: bool = False):
   """
 
   assert ctx.user.ds_playlist or create is True, "No playlist set for Daily Smash."
-
-  # get client
-  sc = await ctx.spotify.get_client(user=ctx.user)
 
   if create:
     playlist = await sc.create_playlist(
@@ -67,22 +66,29 @@ async def run_daily_smash(ctx: Context, create: bool = False):
     resp = await sc.get(
       f'playlists/{playlist.id}/tracks',
       limit=min(50, take_songs),
-      fields='items(track(uri))',
+      fields='items(is_local,track(uri,type))',
       offset=take_offset
     )
 
-    songs.update({id for t in resp['items'] if (id := t['track']['uri']) is not None})
+    songs.update({id for t in resp['items'] if (id := t['track']['uri']) is not None and t['track']['type'] == 'track' and not t['is_local']})
 
     print(f'+ Added {len(resp["items"])} songs from {playlist.name}')
 
-  await sc.put(f'playlists/{ds_playlist_id}/tracks', uris=",".join(songs))
+  # clear it
+  await sc.put(f'playlists/{ds_playlist_id}/tracks', uris=[], body=True)
+
+  # fill it
+  await sc.add_tracks_to_playlist(ds_playlist_id, list(songs)[:songs_count])
 
   # edit last update time
-  await sc.edit_playlist(ds_playlist_id, description=f'🕺 Last updated by Muzee @ {to_user_now(ctx.user.timezone_offset).strftime('%H:%M %d/%m/%Y')}.')
+  await sc.edit_playlist(ds_playlist_id,
+                         description=f'🕺 Last updated by Muzee @ {ctx.user.now().strftime("%H:%M %d/%m/%Y")}.')
 
   return ds_playlist_id
 
-async def run_public_liked(ctx: Context, create: bool = False):
+
+@use_spotify
+async def run_public_liked(ctx: Context, sc: MySpotifyClient, create: bool = False):
   """
   🩷 Create a public playlist from the user's unshareable Liked Songs.
 
@@ -90,9 +96,6 @@ async def run_public_liked(ctx: Context, create: bool = False):
   """
 
   assert ctx.user.pl_playlist or create is True, "No playlist set for Public Liked."
-
-  # get client
-  sc = await ctx.spotify.get_client(user=ctx.user)
 
   if create:
     playlist = await sc.create_playlist(
@@ -115,15 +118,19 @@ async def run_public_liked(ctx: Context, create: bool = False):
 
   # get the user's liked songs
   liked = await sc.get_all_playlist_tracks("likedsongs")
-  print(f'{liked=}')
-  mirror = await sc.get_all_playlist_tracks(pl_playlist_id, fields='items(track(uri))')
-  print(f'{mirror=}')
+  print(f'{len(liked)} {liked=}')
+  mirror = await sc.get_all_playlist_tracks(pl_playlist_id, fields='items(is_local,track(type,uri))')
+  print(f'{len(mirror)} {mirror=}')
 
   liked_uris = {t['track']['uri'] for t in liked}
+  print(f'{len(liked_uris)} {liked_uris=}')
   mirror_uris = {t['track']['uri'] for t in mirror}
+  print(f'{len(mirror_uris)} {mirror_uris=}')
 
   remove_uris = mirror_uris - liked_uris
+  print(f'{len(remove_uris)} {remove_uris=}')
   add_uris = liked_uris - mirror_uris
+  print(f'{len(add_uris)} {add_uris=}')
 
   if remove_uris:
     await sc.delete_playlist_tracks(pl_playlist_id, list(remove_uris))
@@ -132,7 +139,7 @@ async def run_public_liked(ctx: Context, create: bool = False):
     await sc.add_tracks_to_playlist(pl_playlist_id, list(add_uris))
 
   # edit last update time
-  await sc.edit_playlist(pl_playlist_id, description=f'🩷 Last updated by Muzee @ {to_user_now(ctx.user.timezone_offset).strftime('%H:%M %d/%m/%Y')}.')
+  await sc.edit_playlist(pl_playlist_id,
+                         description=f'🩷 Last updated by Muzee @ {ctx.user.now().strftime("%H:%M %d/%m/%Y")}.')
 
   return pl_playlist_id
-

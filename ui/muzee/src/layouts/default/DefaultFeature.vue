@@ -326,8 +326,6 @@ import DefaultView from './View.vue'
 </script>
 
 <script>
-import { API_URL } from '../../shared.js';
-
 export default {
   data() {
     return {

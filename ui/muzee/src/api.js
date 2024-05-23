@@ -29,7 +29,7 @@ class ApiClient {
       ? { ...options.headers, ...add_header }
       : add_header;
 
-    options.headers['accept'] = 'application/json';
+    options.headers["accept"] = "application/json";
 
     let resp;
     try {
@@ -49,22 +49,26 @@ class ApiClient {
       let r = await fetch(url);
       const js = await r.json();
       location.href = js.redirect_url;
-      console.log('REDIRECTED TO ' + js.redirect_url)
-      return
+      console.log("REDIRECTED TO " + js.redirect_url);
+      return;
     }
-
 
     return await this.beforeSendResponse(resp);
   }
 
+  // override this method to add some logic before the request
+  async beforeRequest(method, endpoint, options) {
+    return this.request(method, endpoint, options);
+  }
+
   async get(endpoint, options = {}) {
-    return this.request("GET", endpoint, options);
+    return this.beforeRequest("GET", endpoint, options);
   }
 
   async post(endpoint, body = {}, options = {}) {
     options.body = body ? JSON.stringify(body) : options.body;
 
-    return this.request("POST", endpoint, options);
+    return this.beforeRequest("POST", endpoint, options);
   }
 }
 
@@ -87,6 +91,8 @@ class MuzeeAPI extends ApiClient {
   }
 
   async beforeSendResponse(resp) {
+    if (resp?.error === "network") return resp;
+
     let js = await resp.json();
     console.log(js);
 
@@ -97,6 +103,13 @@ class MuzeeAPI extends ApiClient {
     }
 
     return js;
+  }
+
+  async beforeRequest(method, endpoint, options) {
+    console.log("running before request")
+    options.headers = options.headers || {};
+    options.headers.Timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return super.beforeRequest(method, endpoint, options);
   }
 
   async status() {

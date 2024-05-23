@@ -1,83 +1,68 @@
 import contextlib
+import copy
 from functools import wraps
 
+import pytz
 from sanic.response import json
 from sanic import Request
 
 from .database import Database
 
 
-def authorized(func):
+def authorized(force: bool = True):
   """
   Check if the user is authorized to access the endpoint
   This is done by checking is the provided token in the Authorization header
   is in the database.
 
   If the user is authorized, the user object is added to the request context
+
+  If not and force is enabled (default), an error is returned
+  If not and force is disabled, the ctx.user object will be None
   """
 
-  @wraps(func)
-  async def wrapper(request: Request, *args, **kwargs):
-    # get the database dependency
-    db: Database = request.app.ctx._dependencies.ctx.db
+  def decorator(func):
+    @wraps(func)
+    async def wrapper(request: Request, *args, **kwargs):
+      db: Database = request.app.ctx._dependencies.ctx.db
+      token = request.headers.get("Authorization")
 
-    # get the token from the Authorization header
-    token = request.headers.get("Authorization")
+      if not token:
+        if force:
+          return json({"error": "unauthorized", "msg": "Authorization header is required"})
+        return await func(request, *args, **kwargs)
 
-    if not token:
-      return json({"error": "unauthorized", "msg": "Authorization header is required"})
-
-    # check if the token is in the database
-    user = await db.get_user(token)
-
-    if not user:
-      return json({"error": "unauthorized", "msg": "Invalid token"})
-
-    if (tzo := (request.json or {}).get('timezone_offset')) and user.timezone_offset != tzo:
-      if -12 * 60 <= tzo <= 12 * 60:
-        await db.pool.execute(
-          "UPDATE users SET timezone_offset = $1 WHERE id = $2",
-          tzo, user.id
-        )
-        user.timezone_offset = tzo
-        print(f'Updated timezone_offset for user')
-
-
-    # inject the user object as a parameter
-    assert 'ctx' in kwargs, "You must provide the ctx object in the kwargs"
-    kwargs['ctx'].user = user
-
-    return await func(request, *args, **kwargs)
-
-  return wrapper
-
-def maybe_authorized(func):
-  """
-  Just like the authorized decorator, but if the user is not authorized,
-  the user object is None
-  """
-
-  @wraps(func)
-  async def wrapper(request: Request, *args, **kwargs):
-    # get the database dependency
-    db: Database = request.app.ctx._dependencies.ctx.db
-
-    # get the token from the Authorization header
-    token = request.headers.get("Authorization")
-
-    if token:
       # check if the token is in the database
       user = await db.get_user(token)
 
-      if user:
-        # inject the user object as a parameter
-        assert 'ctx' in kwargs, "You must provide the ctx object in the kwargs"
+      if not user:
+        if force:
+          return json({"error": "unauthorized", "msg": "Invalid token"})
+        return await func(request, *args, **kwargs)
 
-        kwargs['ctx'].user = user
+      if (tz := request.headers.get("Timezone")) and user.timezone != tz:
+        # is valid?
+        with contextlib.suppress(pytz.UnknownTimeZoneError):
+          pytz.timezone(tz)  # raises and exists the context manager if the timezone is invalid
 
-    return await func(request, *args, **kwargs)
+          await db.pool.execute(
+            "UPDATE users SET timezone = $1 WHERE id = $2",
+            tz, user.id
+          )
+          user.timezone = tz
+          print(f'Updated timezone for {user.username}: {tz}')
 
-  return wrapper
+      # inject the user object as a parameter
+      assert 'ctx' in kwargs, "You must provide the ctx object in the kwargs"
+      kwargs['ctx'] = copy.copy(kwargs['ctx'])
+      kwargs['ctx'].user = user
+
+      return await func(request, *args, **kwargs)
+
+    return wrapper
+
+  return decorator
+
 
 def use_spotify(func):
   """
@@ -85,15 +70,14 @@ def use_spotify(func):
   """
 
   @wraps(func)
-  async def wrapper(request: Request, *args, **kwargs):
-    # get the database dependency
+  async def wrapper(*args, **kwargs):
     assert 'ctx' in kwargs, "You must provide the ctx object in the kwargs"
 
     sc = await kwargs['ctx'].spotify.get_client(user=kwargs['ctx'].user)
     kwargs['sc'] = sc
 
     try:
-      return await func(request, *args, **kwargs)
+      return await func(*args, **kwargs)
     finally:
       await sc.close()
 

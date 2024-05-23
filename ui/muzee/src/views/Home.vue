@@ -43,7 +43,8 @@
     <v-col cols="auto" v-for="feat in features" :tabindex="0" class="card" :enabled="enabledFeatures.includes(feat.key)"
       :is-activation="feat.isActivation" :is-logged="logged" @click="featureCardClick(feat.key)"
       @keydown="k => k.key === 'Enter' && featureCardClick(feat.key)">
-      <v-card class="mx-auto feature-card" max-width="344" :disabled="feat.wip || disableAll" :wip="feat.wip">
+      <v-card class="mx-auto feature-card" max-width="344" :disabled="feat.wip || disableAll || appOffline"
+        :wip="feat.wip">
         <template v-slot:title>
           {{ feat.title }}
 
@@ -101,7 +102,7 @@
         <div class="my-5">
           <component :feature="currentFeature" :enabledFeatures="enabledFeatures" :is="currentFeature?.component"
             id="feature-component" @start-loading="componentStartLoading()" @stop-loading="componentStopLoading()"
-            @display-error="componentDisplayError" @feature-toggle="componentFeatureToggle">
+            @display-error="componentDisplayError" @feature-toggle="componentFeatureToggle" @show-toast="showSnackbar">
           </component>
           <div id="component-loading" style="display: none;">
             <v-img style="border-radius:10px;height:20vh; object-fit: contain"
@@ -139,7 +140,7 @@
   <v-footer class="d-flex flex-column" id="footer" v-if="dtApiStatus">
     <div>
       Current State: <v-chip class="status-chip">{{ logged ? 'logged in' : 'not logged' }}</v-chip> |
-      Users Served: <v-chip class="status-chip">{{ dtActiveUsers || '0' }}</v-chip> |
+      Users Served: <v-chip class="status-chip">{{ dtServedUsers || '0' }}</v-chip> |
       API Status: <v-chip class="status-chip">{{ dtApiStatus || 'offline' }}</v-chip>
     </div>
   </v-footer>
@@ -170,23 +171,33 @@
       </v-card-actions>
     </v-card>
   </v-dialog>
+
+  <v-snackbar v-model="alertSnackbar" color="red-darken-2" :timeout="1500">
+    {{ alertSnackbarMessage }}
+    <template v-slot:actions>
+      <v-btn color="grey-lighten-2" variant="text" @click="alertSnackbar = false">
+        Close
+      </v-btn>
+    </template>
+  </v-snackbar>
 </template>
 
 <script>
 
-import shared, { API_URL } from '../shared.js';
 
 import DailySmash from '@/components/features/DailySmash.vue';
 import PlaylistGenerator from '@/components/features/PlaylistGenerator.vue';
 import LanguageFilter from '@/components/features/LanguageFilter.vue';
 import PublicLiked from '@/components/features/PublicLiked.vue';
+import LiveWeather from '@/components/features/LiveWeather.vue';
 
 export default {
   components: {
     DailySmash,
     PlaylistGenerator,
     LanguageFilter,
-    PublicLiked
+    PublicLiked,
+    LiveWeather,
   },
 
   created() {
@@ -205,11 +216,15 @@ export default {
       loadingIcon: 'l',
       displayError: '',
 
+      // snackbar
+      alertSnackbar: false,
+      alertSnackbarMessage: "🚀",
+
       // debugging
 
       // server status
       appOffline: false,
-      dtActiveUsers: null,
+      dtServedUsers: null,
       dtApiStatus: null,
 
       // app
@@ -274,7 +289,8 @@ export default {
           subtitle: 'description editor',
           subtitleIcon: 'mdi-text',
           text: 'Have your playlist description live updated with the current weather.',
-          wip: true
+          short: 'Live weather in your playlist',
+          component: 'LiveWeather'
         },
         {
           key: 'liked-archive',
@@ -317,7 +333,7 @@ export default {
       return
     }
 
-    this.dtActiveUsers = js.active_users;
+    this.dtServedUsers = js.served_users;
     this.dtApiStatus = js.status;
     this.logged = js.is_logged;
 
@@ -455,18 +471,13 @@ export default {
     },
 
     doLogout() {
-      localStorage.setItem("should_be_logged", "false");
+      localStorage.setItem(this.api.tokenName, '');
       this.logged = false;
-      console.log(this.logoutDeleteData)
-      this.request('/logout', null, null, {
-        method: 'POST', body: JSON.stringify({
-          delete_data: this.logoutDeleteData
-        })
-      });
-      localStorage.removeItem("auth");
+      // await this.api.logout({ delete_data: this.logoutDeleteData });
     },
 
     featureCardClick(key) {
+      if (this.appOffline) return;
       if (this.features.find(f => f.key === key).wip) return;
 
       if (!this.logged) {
@@ -475,7 +486,13 @@ export default {
 
       this.currentFeature = this.features.find(f => f.key === key);
       this.featureDialog = true;
-    }
+    },
+    // Snackbar
+    showSnackbar(message) {
+      this.alertSnackbarMessage = message;
+      this.alertSnackbar = true;
+    },
+
   }
 }
 </script>
@@ -630,5 +647,10 @@ export default {
   60% {
     transform: translate3d(4px, 0, 0) rotate(180deg);
   }
+}
+
+.time-picked {
+  font-weight: bold;
+  color: #d27de0;
 }
 </style>

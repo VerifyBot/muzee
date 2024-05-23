@@ -1,0 +1,23 @@
+[database]
+username =
+password =
+database =
+
+[spotify]
+client_id =
+client_secret =
+scope = user-read-email playlist-modify-public playlist-modify-private user-library-read user-read-private
+
+[app]
+type = development
+server_url =
+website_url =
+
+[prod_app]
+type = production
+server_url =
+website_url =
+
+[misc]
+# seperate ids with a comma
+admins =

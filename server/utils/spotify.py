@@ -71,8 +71,6 @@ class MyHTTP(sp.http.HTTP):
     try:
       return await super().request(*args, **kwargs)
     except sp.Unauthorized as e:
-      # print(e, e.args, e.message, e.response)
-
       if _refresh > 2:
         raise CantRefresh()
 
@@ -107,6 +105,11 @@ class MySpotifyClient(sp.Client):
     return await self.http.request(sp.Route('GET', endpoint, **params))
 
   async def put(self, endpoint: str, **params):
+    is_body = params.pop('body', False)
+
+    if is_body:
+      return await self.http.request(sp.Route('PUT', endpoint), json=params)
+
     return await self.http.request(sp.Route('PUT', endpoint, **params))
 
   async def post(self, endpoint: str, **data):
@@ -115,10 +118,21 @@ class MySpotifyClient(sp.Client):
   async def delete(self, endpoint: str, **data):
     return await self.http.request(sp.Route('DELETE', endpoint), json=data)
 
+  @staticmethod
+  def _is_track(it: dict) -> bool:
+    if it['track']['uri'] is None: return False
+    if it['track'].get('type', 'track') != 'track': return False
+    if it.get('is_local', False): return False
+    if it['track'].get('is_local', False): return False
+
+    return True
+
   async def get_all_playlist_tracks(self, playlist_id: str, **kw) -> list[dict]:
     """
     Return all the tracks in a playlist
     """
+
+    print(kw)
 
     tracks = []
     offset = 0
@@ -131,9 +145,13 @@ class MySpotifyClient(sp.Client):
       endpoint = f'playlists/{playlist_id}/tracks'
 
     while True:
+      print(f'GET {endpoint} {limit=} {offset=} {kw=}')
       js = await self.get(endpoint, limit=limit, offset=offset, **kw)
+      print(f'{js=}'[:150])
       items = js['items']
-      tracks += items
+      print(f'{items=}'[:150])
+      tracks += [t for t in items if MySpotifyClient._is_track(t)]
+      print(f'{tracks=}'[:150])
 
       if len(items) < limit:
         break
@@ -169,8 +187,11 @@ class MySpotifyClient(sp.Client):
     Get the image of a playlist
     """
 
-    js = await self.get(f'playlists/{playlist_id}', fields='images')
-    return js['images'][0]['url'] if js['images'] else None
+    try:
+      js = await self.get(f'playlists/{playlist_id}/images')
+      return js[0]['url'] if js else None
+    except sp.NotFound:
+      return None
 
 
 def sp_endpoint(keep_client: bool = False):

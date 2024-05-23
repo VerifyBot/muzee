@@ -59,7 +59,7 @@ class Database:
     """Update a stat."""
 
     assert key in (
-      "generated_playlists", "daily_smashes", "filtered_playlists", "archived_song", "weather_changes"), "Invalid key"
+      "generated_playlists", "daily_smashes", "filtered_playlists", "archived_songs", "weather_changes"), "Invalid key"
 
     return await self.pool.fetchval(
       f"""

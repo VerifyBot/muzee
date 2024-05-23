@@ -6,3 +6,4 @@ coloredlogs
 aiocache
 asyncspotify
 pydantic
+aiocron

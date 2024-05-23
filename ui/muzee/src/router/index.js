@@ -2,14 +2,18 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { defineAsyncComponent } from "vue";
 
+import Home from "@/views/Home.vue"
+import LoginRedirector from "@/views/LoginRedirector.vue"
+import Default from "@/layouts/default/Default.vue"
+
 const routes = [
   {
     path: "/login",
-    component: () => defineAsyncComponent(() => import("@/views/LoginRedirector.vue")),
+    component: LoginRedirector,
   },
   {
     path: "/",
-    component: () => defineAsyncComponent(() => import("@/layouts/default/Default.vue")),
+    component: Default,
     children: [
       {
         path: "",
@@ -17,8 +21,7 @@ const routes = [
         // route level code-splitting
         // this generates a separate chunk (about.[hash].js) for this route
         // which is lazy-loaded when the route is visited.
-        component: () =>
-        defineAsyncComponent(() => import("@/views/Home.vue")),
+        component: Home,
       },
     ],
   },

@@ -8,7 +8,11 @@
           Playlist URL / ID
         </div>
         <v-text-field placeholder="https://open.spotify.com/playlist/..." variant="outlined" spellcheck="false"
-          v-model="playlistValue"></v-text-field>
+          v-model="playlistValue">
+          <template #append-inner>
+            <v-icon @mousedown.stop @click.stop @click="openLibrary" icon="mdi-open-in-new"></v-icon>
+          </template>
+        </v-text-field>
 
 
         <div class="text-medium-emphasis mb-2">
@@ -38,26 +42,7 @@
     </span>
     <span v-else-if="state === 'done'">
       <h2 class="done mt-5 mb-2 text-center">🎉 Done</h2>
-      <v-card class="d-flex justify-space-between flex-wrap" style="justify-content: center !important;">
-        <div>
-
-          <v-card-title class="text-h5">
-            {{ playlistName }}
-          </v-card-title>
-
-          <v-card-subtitle>{{ playlistSongsCount }} songs</v-card-subtitle>
-        </div>
-
-        <v-avatar class="ma-3" rounded="0" size="125">
-          <v-img :src="playlistImage" lazy-src="https://i.imgur.com/N1svi4r.png">
-            <template v-slot:placeholder>
-              <div class="d-flex align-center justify-center fill-height">
-                <v-progress-circular color="grey-lighten-4" indeterminate></v-progress-circular>
-              </div>
-            </template>
-          </v-img>
-        </v-avatar>
-      </v-card>
+      <PlaylistCard v-if="playlistId" :newDelay="true" :playlistId="playlistId"></PlaylistCard>
 
       <v-card-actions class="justify-center mt-5 flex-wrap">
         <v-btn color="green" variant="outlined" prepend-icon="mdi-spotify" class="ma-2" @click="openPlaylist">
@@ -101,7 +86,13 @@
 </style>
 
 <script>
+import PlaylistCard from '@/components/PlaylistCard.vue';
+
+
 export default {
+  components: {
+    PlaylistCard
+  },
   data() {
     return {
       supportedLanguages: {
@@ -179,7 +170,6 @@ export default {
       const js = await this.api.languageFilter({
         playlist: this.playlistValue,
         keep_chars: charset,
-        timezone_offset: new Date().getTimezoneOffset()
       });
 
       this.$emit("stop-loading");
@@ -194,7 +184,10 @@ export default {
       this.playlistImage = js.image;
       this.playlistSongsCount = js.songs_count;
       this.state = 'done';
-    }
+    },
+    openLibrary() {
+      window.open("spotify:library", '_blank')
+    },
   },
 
 }
