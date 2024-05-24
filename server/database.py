@@ -85,7 +85,7 @@ class Database:
 
     @user
     async def log_event(
-            self, user_id: str, name: str, success: bool, data: dict = None
+        self, user_id: str, name: str, success: bool, data: dict = None
     ):
         """Log an event."""
         return await self.pool.execute(
@@ -122,13 +122,16 @@ class Database:
         """Load a cache value."""
 
         if default is list:
-            default = '[]'
+            default = "[]"
 
-        val = await self.pool.fetchval(
-            "SELECT value FROM user_cache WHERE user_id = $1 AND KEY = $2",
-            user_id,
-            key,
-        ) or default
+        val = (
+            await self.pool.fetchval(
+                "SELECT value FROM user_cache WHERE user_id = $1 AND KEY = $2",
+                user_id,
+                key,
+            )
+            or default
+        )
 
         if val is not None:
             return json.loads(val)

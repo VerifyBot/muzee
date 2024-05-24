@@ -3,6 +3,7 @@ import logging
 from server.models.context import Context
 from server.utils.decos import use_spotify
 
+
 @use_spotify
 async def run_liked_archive(ctx: Context, create: bool = False):
     """
@@ -44,7 +45,9 @@ async def run_liked_archive(ctx: Context, create: bool = False):
     # this is currently the best way to check if the playlist has changed,
     # as spotify doesnt provide a snapshot_id for the liked songs playlist.
     # tldr; spotify api is not perfect \_(ツ)_/¯
-    now_liked = [t["track"]["uri"] for t in await ctx.sc.get_all_playlist_tracks("likedsongs")]
+    now_liked = [
+        t["track"]["uri"] for t in await ctx.sc.get_all_playlist_tracks("likedsongs")
+    ]
 
     unliked = list(set(old_liked) - set(now_liked))
 
@@ -63,6 +66,14 @@ async def run_liked_archive(ctx: Context, create: bool = False):
         ctx.user,
         "liked_archive",
         success=True,
-        data=dict(request={"playlist_id": ctx.user.la_playlist, "create": create, "added": unliked}),
+        data=dict(
+            request={
+                "playlist_id": ctx.user.la_playlist,
+                "create": create,
+                "added": unliked,
+            }
+        ),
     )
-    logging.info(f"updated liked archive for {ctx.user.username} +{len(unliked)} unliked")
+    logging.info(
+        f"updated liked archive for {ctx.user.username} +{len(unliked)} unliked"
+    )

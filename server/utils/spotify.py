@@ -143,7 +143,6 @@ class MySpotifyClient(sp.Client):
         Return all the tracks in a playlist
         """
 
-
         tracks = []
         offset = 0
         limit = 50

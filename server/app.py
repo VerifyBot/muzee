@@ -20,7 +20,12 @@ from sanic_ext.exceptions import ValidationError
 from server.database import Database
 from server.models.user import User
 from server.models.context import Context
-from server.actions import run_daily_smash, run_public_liked, run_live_weather, run_liked_archive
+from server.actions import (
+    run_daily_smash,
+    run_public_liked,
+    run_live_weather,
+    run_liked_archive,
+)
 from server.utils import spotify as sp
 
 
@@ -139,7 +144,7 @@ WHERE
         """
         Task to run every hour and update the liked archive playlists
         """
-        logging.info('liked archive task')
+        logging.info("liked archive task")
         users = await self.ctx.db.pool.fetch(
             """SELECT * FROM users WHERE 'liked-archive' = ANY(enabled_features)AND la_playlist IS NOT NULL"""
         )
@@ -150,7 +155,6 @@ WHERE
 
             logging.info(f"Running liked archive for {ctx.user.username}")
             await run_liked_archive(ctx=ctx)
-
 
     async def on_pydantic_error(self, request: Request, exception: ValidationError):
         exc: pydantic.ValidationError = exception.extra["exception"]
