@@ -55,10 +55,14 @@ class ToggleLiveWeatherData(pydantic.BaseModel):
         return re.match(playlist_regex, self.playlist).groups()[0]
 
 
+class ToggleLikedArchiveData(pydantic.BaseModel):
+    enabled: bool
+
+
 @authorized()
 @validate(json=GeneratePlaylistData)
 async def route_generate_playlist(
-    request: Request, ctx: Context, body: GeneratePlaylistData
+        request: Request, ctx: Context, body: GeneratePlaylistData
 ):
     """
     Generate a playlist for the user based on the topic and the number of songs
@@ -75,7 +79,7 @@ async def route_generate_playlist(
 @validate(json=ToggleDailySmashData)
 @use_spotify
 async def route_toggle_daily_smash(
-    request: Request, ctx: Context, body: ToggleDailySmashData
+        request: Request, ctx: Context, body: ToggleDailySmashData
 ):
     """
     Toggle the daily smash feature
@@ -108,8 +112,8 @@ async def route_toggle_daily_smash(
     if ctx.user.ds_playlist:
         # need to update anything?
         if (
-            ctx.user.ds_songs_count != body.songs_count
-            or ctx.user.ds_update_at != utc_time
+                ctx.user.ds_songs_count != body.songs_count
+                or ctx.user.ds_update_at != utc_time
         ):
             # need to update the playlist
             await ctx.db.pool.execute(
@@ -165,6 +169,7 @@ async def route_feature_details(request: Request, ctx: Context):
         "daily-smash",
         "public-liked",
         "live-weather",
+        "liked-archive"
     ), "Route details for this feature is not implemented."
 
     if feature not in ctx.user.enabled_features:
@@ -174,6 +179,7 @@ async def route_feature_details(request: Request, ctx: Context):
         "daily-smash": ctx.user.ds_playlist,
         "public-liked": ctx.user.pl_playlist,
         "live-weather": ctx.user.lw_playlist,
+        "liked-archive": ctx.user.la_playlist
     }
 
     js = await ctx.playlist_response(playlist[feature])
@@ -192,7 +198,7 @@ async def route_feature_details(request: Request, ctx: Context):
 @validate(json=LanguageFilterData)
 @use_spotify
 async def route_language_filter(
-    request: Request, ctx: Context, body: LanguageFilterData
+        request: Request, ctx: Context, body: LanguageFilterData
 ):
     """
     Generate a playlist for the user based on the topic and the number of songs
@@ -241,7 +247,7 @@ async def route_language_filter(
 @validate(json=TogglePublicLikedData)
 @use_spotify
 async def route_toggle_public_liked(
-    request: Request, ctx: Context, body: TogglePublicLikedData
+        request: Request, ctx: Context, body: TogglePublicLikedData
 ):
     """
     Toggle the public liked feature
@@ -294,7 +300,7 @@ async def route_toggle_public_liked(
 @validate(json=ToggleLiveWeatherData)
 @use_spotify
 async def route_toggle_live_weather(
-    request: Request, ctx: Context, body: ToggleLiveWeatherData
+        request: Request, ctx: Context, body: ToggleLiveWeatherData
 ):
     """
     Toggle the live weather feature
@@ -310,13 +316,13 @@ async def route_toggle_live_weather(
 
     # has a live weather playlist already?
     if first_time or (
-        not first_time
-        and (
-            ctx.user.lw_playlist != body.playlist_id
-            or ctx.user.lw_lat != body.lat
-            or ctx.user.lw_lon != body.lon
-            or ctx.user.lw_scale != body.scale
-        )
+            not first_time
+            and (
+                    ctx.user.lw_playlist != body.playlist_id
+                    or ctx.user.lw_lat != body.lat
+                    or ctx.user.lw_lon != body.lon
+                    or ctx.user.lw_scale != body.scale
+            )
     ):
         await ctx.db.pool.execute(
             "UPDATE users SET lw_playlist = $1, lw_lat = $2, lw_lon = $3, lw_scale = $4 WHERE id = $5",
@@ -336,3 +342,35 @@ async def route_toggle_live_weather(
         await actions.run_live_weather(ctx=ctx)
 
     return await ctx.playlist_response(ctx.user.lw_playlist)
+
+
+@authorized()
+@validate(json=ToggleLikedArchiveData)
+@use_spotify
+async def route_toggle_liked_archive(request: Request, ctx: Context, body: ToggleLikedArchiveData):
+    """
+    Toggle the liked archive feature
+    """
+
+    if not await ctx.toggle_feature("liked-archive", body.enabled):
+        return await ctx.playlist_response(ctx.user.la_playlist)
+
+    if ctx.user.la_playlist is None:
+        playlist_id = await actions.run_liked_archive(ctx=ctx, create=True)
+
+        await ctx.db.pool.execute(
+            """
+            UPDATE users
+            SET la_playlist = $1
+            WHERE id = $2
+            """,
+            playlist_id,
+            ctx.user.id
+        )
+        ctx.user.la_playlist = playlist_id
+
+    return await ctx.playlist_response(ctx.user.la_playlist)
+
+
+
+

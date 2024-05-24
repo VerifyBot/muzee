@@ -63,7 +63,6 @@ tables = dict(
   );
   
   """,
-    # events table for logging activity
     events="""
   CREATE TABLE IF NOT EXISTS events (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -76,6 +75,15 @@ tables = dict(
     data JSONB DEFAULT '{}'::jsonb
   );
   """,
+    user_cache="""
+    CREATE TABLE IF NOT EXISTS user_cache (
+        user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        key TEXT,
+        value JSONB,
+        
+        UNIQUE (user_id, key)
+    );
+    """,
 )
 
 
@@ -112,4 +120,4 @@ async def main(*args, **kwargs):
 
 
 if __name__ == "__main__":
-    asyncio.run(main(redo=True))
+    asyncio.run(main(redo=['user_cache']))

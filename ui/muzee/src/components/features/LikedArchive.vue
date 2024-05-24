@@ -9,7 +9,7 @@
       <!-- feature playlist -->
       <div v-if="featureEnabled" class="mx-auto pb-3">
 
-        <PlaylistCard v-if="playlistId" :playlistId="playlistId" />
+        <PlaylistCard v-if="playlistId" :newDelay="isCreate" :playlistId="playlistId" />
 
       </div>
 
@@ -59,7 +59,9 @@ export default {
       state: 'idle',  // idle, done, error
       playlistName: '',
       playlistId: '',
-      playlistImage: ''
+      playlistImage: '',
+
+      isCreate: false,
     };
   },
 
@@ -79,6 +81,7 @@ export default {
         return
       }
 
+      this.isCreate = true;
       this.featureEnabled = !this.featureEnabled;
       this.playlistId = js.playlist;
       this.playlistImage = js.image;

@@ -85,7 +85,7 @@ class Database:
 
     @user
     async def log_event(
-        self, user_id: str, name: str, success: bool, data: dict = None
+            self, user_id: str, name: str, success: bool, data: dict = None
     ):
         """Log an event."""
         return await self.pool.execute(
@@ -115,4 +115,34 @@ class Database:
             "UPDATE users SET enabled_features = array_remove(enabled_features, $1) WHERE id = $2",
             feature,
             user_id,
+        )
+
+    @user
+    async def load_cache(self, user_id: str, key: str, default: str | type = None):
+        """Load a cache value."""
+
+        if default is list:
+            default = '[]'
+
+        val = await self.pool.fetchval(
+            "SELECT value FROM user_cache WHERE user_id = $1 AND KEY = $2",
+            user_id,
+            key,
+        ) or default
+
+        if val is not None:
+            return json.loads(val)
+
+    @user
+    async def save_cache(self, user_id: str, key: str, value: dict | list):
+        """Save a cache value."""
+        return await self.pool.execute(
+            """
+      INSERT INTO user_cache (user_id, key, value)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (user_id, key) DO UPDATE SET value = $3::jsonb
+      """,
+            user_id,
+            key,
+            json.dumps(value),
         )

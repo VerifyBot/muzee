@@ -143,7 +143,6 @@ class MySpotifyClient(sp.Client):
         Return all the tracks in a playlist
         """
 
-        logging.info(kw)
 
         tracks = []
         offset = 0
@@ -156,13 +155,9 @@ class MySpotifyClient(sp.Client):
             endpoint = f"playlists/{playlist_id}/tracks"
 
         while True:
-            logging.info(f"GET {endpoint} {limit=} {offset=} {kw=}")
             js = await self.get(endpoint, limit=limit, offset=offset, **kw)
-            logging.info(f"{js=}"[:150])
             items = js["items"]
-            logging.info(f"{items=}"[:150])
             tracks += [t for t in items if MySpotifyClient._is_track(t)]
-            logging.info(f"{tracks=}"[:150])
 
             if len(items) < limit:
                 break
@@ -173,7 +168,7 @@ class MySpotifyClient(sp.Client):
 
     async def add_tracks_to_playlist(self, playlist_id: str, tracks_ids: list[str]):
         """
-        Set the tracks of a playlist
+        Add tracks to a playlist
         """
 
         limit = 50
