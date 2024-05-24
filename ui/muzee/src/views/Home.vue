@@ -190,6 +190,7 @@ import PlaylistGenerator from '@/components/features/PlaylistGenerator.vue';
 import LanguageFilter from '@/components/features/LanguageFilter.vue';
 import PublicLiked from '@/components/features/PublicLiked.vue';
 import LiveWeather from '@/components/features/LiveWeather.vue';
+import LikedArchive from '@/components/features/LikedArchive.vue';
 
 export default {
   components: {
@@ -198,6 +199,7 @@ export default {
     LanguageFilter,
     PublicLiked,
     LiveWeather,
+    LikedArchive
   },
 
   created() {
@@ -299,7 +301,8 @@ export default {
           subtitle: 'dynamic playlist',
           subtitleIcon: 'mdi-calendar-clock-outline',
           text: 'Saves songs that you first liked and then discarded to a playlist that you can check later.',
-          wip: true
+          short: 'Save your unliked songs',
+          component: 'LikedArchive'
         }
       ],
 
