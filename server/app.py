@@ -32,12 +32,12 @@ from server.utils import spotify as sp
 
 class Muzee:
     def __init__(
-            self,
-            *args,
-            app: Sanic,
-            config: configparser.ConfigParser,
-            mode: str = "dev",
-            **kwargs,
+        self,
+        *args,
+        app: Sanic,
+        config: configparser.ConfigParser,
+        mode: str = "dev",
+        **kwargs,
     ):
         self.app = app
         self.config = config
