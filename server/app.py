@@ -20,7 +20,7 @@ from sanic_ext.exceptions import ValidationError
 from server.database import Database
 from server.models.user import User
 from server.models.context import Context
-from server.actions import run_daily_smash, run_public_liked
+from server.actions import run_daily_smash, run_public_liked, run_live_weather
 from server.utils import spotify as sp
 
 
@@ -115,6 +115,26 @@ WHERE
             logging.info(f"Running public liked for {ctx.user.username}")
             await run_public_liked(ctx=ctx)
 
+    async def live_weather_task(self):
+        """
+        Task to run every hour and update the live weather playlists
+        """
+        users = await self.ctx.db.pool.fetch(
+            """
+SELECT * FROM users
+WHERE
+  'live-weather' = ANY(enabled_features)
+  AND lw_playlist IS NOT NULL
+"""
+        )
+
+        for raw_user in users:
+            ctx = copy.copy(self.ctx)
+            ctx.user = User(**raw_user)
+
+            logging.info(f"Running live weather for {ctx.user.username}")
+            await run_live_weather(ctx=ctx)
+
     async def on_pydantic_error(self, request: Request, exception: ValidationError):
         exc: pydantic.ValidationError = exception.extra["exception"]
 
@@ -145,7 +165,7 @@ WHERE
             db=db_conn,
         )
 
-        ctx = Context(db=db_conn, spotify=spotify)
+        ctx = Context(app=self, db=db_conn, spotify=spotify)
 
         self.ctx = ctx
         app.ext.dependency(ctx, name="ctx")
@@ -153,6 +173,7 @@ WHERE
         ## Tasks ##
         aiocron.crontab("*/5 * * * * 15", func=self.daily_smash_task, start=True)
         aiocron.crontab("0,30 * * * *", func=self.public_liked_task, start=True)
+        aiocron.crontab("5 * * * *", func=self.live_weather_task, start=True)
 
     async def close_hook(self, app: Sanic):
         logging.info("Closing db connection")
@@ -198,6 +219,7 @@ WHERE
         from .routes.features import route_toggle_daily_smash, route_feature_details
         from .routes.features import route_language_filter
         from .routes.features import route_toggle_public_liked
+        from .routes.features import route_toggle_live_weather
 
         self.app.add_route(
             route_generate_playlist, "/generate_playlist", methods=["POST"]
@@ -209,4 +231,7 @@ WHERE
         self.app.add_route(route_language_filter, "/language_filter", methods=["POST"])
         self.app.add_route(
             route_toggle_public_liked, "/toggle_public_liked", methods=["POST"]
+        )
+        self.app.add_route(
+            route_toggle_live_weather, "/toggle_live_weather", methods=["POST"]
         )

@@ -44,7 +44,7 @@
 
       <!-- feature playlist -->
       <div v-if="featureEnabled" class="mx-auto pb-3">
-        <PlaylistCard v-if="playlistId" :newDelay="true" :playlistId="playlistId" />
+        <PlaylistCard v-if="playlistId" :playlistId="playlistId" />
 
       </div>
 
@@ -61,8 +61,13 @@
 </template>
 
 <script>
+import PlaylistCard from '@/components/PlaylistCard.vue';
+
 
 export default {
+  components: {
+    PlaylistCard
+  },
   async mounted() {
     this.featureEnabled = this.enabledFeatures.includes(this.featureKey);
 
@@ -70,11 +75,13 @@ export default {
       const js = await this.api.featureDetails({ key: this.featureKey });
 
       this.playlistId = js.playlist;
+      this.playlistValue = `https://open.spotify.com/playlist/${js.playlist}`;
+
       this.playlistImage = js.image;
 
       // form
-      this.updateAt = js.update_at;
-      this.songsCount = js.songs_count;
+      this.latlongValue = `${js.lat}, ${js.lon}`;
+      this.tempScale = js.scale.charAt(0).toUpperCase() + js.scale.slice(1);
     }
   },
 
@@ -106,11 +113,13 @@ export default {
     async toggleFeature() {
       this.$emit("start-loading");
 
+      const [lat, lon] = this.latlongValue.split(",").map(v => v.trim());
+
       const js = await this.api.toggleLiveWeather({
         enabled: !this.featureEnabled,
         playlist: this.playlistValue,
-        latlong: this.latlongValue,
-        temp_scale: this.tempScale.toLowerCase(),
+        lat, lon,
+        scale: this.tempScale.toLowerCase(),
       });
 
       this.$emit("feature-toggle", this.featureKey, !this.featureEnabled)

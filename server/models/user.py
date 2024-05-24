@@ -42,6 +42,10 @@ class User:
     ds_songs_count: int = None
     pl_playlist: str = None
     la_playlist: str = None
+    lw_playlist: str = None
+    lw_lat: float = None
+    lw_lon: float = None
+    lw_scale: str = None
 
     @property
     def ds_update_at_minutes(self) -> int | None:

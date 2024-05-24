@@ -41,7 +41,10 @@ tables = dict(
     pl_playlist TEXT,
     
     -- live weather (lw)
-    -- todo...
+    lw_playlist TEXT,
+    lw_lat FLOAT,
+    lw_lon FLOAT,
+    lw_scale TEXT,
     
     -- liked archive (la)
     la_playlist TEXT

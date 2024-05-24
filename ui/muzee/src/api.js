@@ -135,6 +135,10 @@ class MuzeeAPI extends ApiClient {
   async togglePublicLiked(data) {
     return await this.post("/toggle_public_liked", data);
   }
+
+  async toggleLiveWeather(data) {
+    return await this.post("/toggle_live_weather", data);
+  }
 }
 
 // some other file does "import { ApiClient } from './api.js'", so:

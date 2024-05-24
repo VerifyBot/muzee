@@ -49,17 +49,18 @@ async def run_public_liked(ctx: Context, create: bool = False):
     if add_uris:
         await ctx.sc.add_tracks_to_playlist(pl_playlist_id, list(add_uris))
 
-    # edit last update time
-    await ctx.sc.edit_playlist(
-        pl_playlist_id,
-        description=f'🩷 Last updated by Muzee @ {ctx.user.now().strftime("%H:%M %d/%m/%Y")}.',
-    )
+    if remove_uris or add_uris:
+        # edit last update time
+        await ctx.sc.edit_playlist(
+            pl_playlist_id,
+            description=f'🩷 Last updated by Muzee @ {ctx.user.now().strftime("%H:%M %d/%m/%Y")}.',
+        )
 
-    await ctx.db.log_event(
-        ctx.user,
-        "public_liked",
-        success=True,
-        data=dict(request={"playlist_id": pl_playlist_id, "create": create}),
-    )
+        await ctx.db.log_event(
+            ctx.user,
+            "public_liked",
+            success=True,
+            data=dict(request={"playlist_id": pl_playlist_id, "create": create}),
+        )
 
     return pl_playlist_id
