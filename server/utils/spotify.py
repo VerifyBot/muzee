@@ -186,7 +186,7 @@ class MySpotifyClient(sp.Client):
         while tracks_ids:
             await self.delete(
                 f"playlists/{playlist_id}/tracks",
-                tracks=[{"uri": uri} for uri in tracks_ids],
+                tracks=[{"uri": uri} for uri in tracks_ids[:limit]],
             )
             tracks_ids = tracks_ids[limit:]
 
